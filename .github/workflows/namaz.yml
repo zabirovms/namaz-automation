@@ -24,6 +24,9 @@ jobs:
       - name: Run scraper
         run: python scripts/fetch_prayertimes.py
 
+      - name: Install boto3
+        run: pip install boto3
+
       - name: Upload JSON to R2
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
@@ -31,7 +34,6 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
         run: |
-          pip install boto3
           python - << 'EOF'
 import os
 import boto3
