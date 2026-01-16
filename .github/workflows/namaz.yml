@@ -1,0 +1,59 @@
+name: Update Prayer Times
+
+on:
+  schedule:
+    - cron: "0 1 1 * *"  # 1st day of every month at 01:00 UTC
+  workflow_dispatch:      # allows manual trigger
+
+jobs:
+  update-namaz:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run scraper
+        run: python scripts/fetch_prayertimes.py
+
+      - name: Upload JSON to R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          pip install boto3
+          python - << 'EOF'
+import os
+import boto3
+
+account_id = os.environ["R2_ACCOUNT_ID"]
+access_key = os.environ["R2_ACCESS_KEY_ID"]
+secret_key = os.environ["R2_SECRET_ACCESS_KEY"]
+bucket_name = os.environ["R2_BUCKET_NAME"]
+
+session = boto3.session.Session()
+s3 = session.client(
+    's3',
+    region_name='auto',
+    endpoint_url=f'https://{account_id}.r2.cloudflarestorage.com',
+    aws_access_key_id=access_key,
+    aws_secret_access_key=secret_key
+)
+
+output_dir = "output"
+for file_name in os.listdir(output_dir):
+    if file_name.endswith(".json"):
+        file_path = os.path.join(output_dir, file_name)
+        s3.upload_file(file_path, bucket_name, file_name)
+        print(f"✅ Uploaded {file_name} to R2")
+EOF
